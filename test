@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Family Christmas Wish Lists</title>
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eaf4fa;--card:#fbfdff;--ink:#1d3a2c;--muted:#58756a;--line:#c9dfe8;--red:#2d6a4f;--btn:#2d6a4f;--green:#3f8f68;--tint:#dff0e3;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12201a;--card:#1b2d25;--ink:#e6f2ec;--muted:#9bb8aa;--line:#2d4a3d;--red:#8fd6ae;--btn:#3b8a63;--green:#8fd6ae;--tint:#24392f;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#12201a;--card:#1b2d25;--ink:#e6f2ec;--muted:#9bb8aa;--line:#2d4a3d;--red:#8fd6ae;--btn:#3b8a63;--green:#8fd6ae;--tint:#24392f;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 'Quicksand','Segoe UI',system-ui,-apple-system,Arial,sans-serif}
+main{max-width:920px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:30px;font-weight:400;letter-spacing:.02em;margin:0 0 4px}
+h2{font-size:20px;font-weight:400;margin:0 0 10px}
+.sub,.note{color:var(--muted);font-size:14px;margin:0 0 20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px}
+.mine{border-color:var(--red)}
+.row{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--line)}
+.row:first-of-type{border-top:0}
+.txt{min-width:0;overflow-wrap:anywhere}
+.txt a{color:var(--red);font-size:14px;display:inline-block}
+.add{display:grid;gap:8px;margin-bottom:8px}
+input{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
+button{font:inherit;font-size:14px;border:1px solid var(--line);background:var(--tint);color:var(--ink);border-radius:8px;padding:8px 12px;cursor:pointer;white-space:nowrap}
+button.p{background:var(--btn);color:#fff;border-color:var(--btn)}
+button{font-weight:400}
+body{background-image:linear-gradient(180deg,var(--bg),var(--tint));background-attachment:fixed}
+.tag{font-size:14px;color:var(--green);white-space:nowrap}
+.empty{color:var(--muted);font-size:14px;margin:4px 0}
+#others{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:16px;align-items:start}
+#others .card{margin-bottom:0}
+#others .empty{grid-column:1/-1}
+.sec{margin:24px 0 12px}
+.hd{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.hd h2,.hd .note{margin:0}
+.av{width:40px;height:40px;border-radius:50%;background:var(--btn);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;flex:none}
+#status{color:var(--muted)}
+</style>
+</head>
+<body>
+<main>
+<h1>Family Wish Lists</h1>
+<p class="sub">Add what you’d like, and pick gifts from everyone else’s lists.</p>
+<p id="status">Loading…</p>
+<div id="app" hidden>
+  <div class="card mine">
+    <h2>My list</h2>
+    <p class="note">Nobody can see on your list which items are claimed, so nothing gets spoiled.</p>
+    <div class="add">
+      <input id="t" placeholder="What would you like?" maxlength="120">
+      <input id="u" placeholder="Link (optional)" maxlength="500">
+      <button class="p" id="addBtn">Add to my list</button>
+    </div>
+    <div id="mine"></div>
+  </div>
+  <h2 class="sec">Everyone’s lists</h2>
+  <div id="others"></div>
+</div>
+</main>
+<script>
+(async()=>{
+const $=s=>document.querySelector(s);
+const status=$('#status');
+let items=[],claims={},names={},me=null;
+const fail=m=>{status.textContent=m};
+const [db,user]=await Promise.all([claude.use('db'),claude.use('user')]);
+if(!db||!user){fail('Please sign in to Claude and open this page from your invitation to add items or claim gifts.');return}
+me=await user.id();
+status.hidden=true;$('#app').hidden=false;
+
+function el(tag,props,...kids){const e=document.createElement(tag);Object.assign(e,props||{});kids.forEach(k=>e.append(k));return e}
+function safeUrl(u){try{const x=new URL(u);return /^https?:$/.test(x.protocol)?x.href:null}catch{return null}}
+function linkEl(u){const h=safeUrl(u);return h?el('a',{href:h,target:'_blank',rel:'noopener noreferrer',textContent:' View link ↗'}):''}
+
+let busy=false;
+async function render(){
+  if(busy)return;busy=true;
+  const owners=[...new Set(items.map(i=>i.owner))];
+  try{const ps=await user.profiles(owners.filter(Boolean));owners.forEach(o=>{names[o]=(ps[o]&&ps[o].name)||'Someone'})}catch{owners.forEach(o=>names[o]=names[o]||'Someone')}
+  busy=false;
+  const mine=$('#mine');mine.replaceChildren();
+  const oth=$('#others');oth.replaceChildren();
+  owners.sort((a,b)=>a===me?-1:b===me?1:names[a].localeCompare(names[b])).forEach(o=>{
+    const list=items.filter(i=>i.owner===o);
+    const card=el('div',{className:'card'},el('div',{className:'hd'},el('span',{className:'av',textContent:(names[o][0]||'?').toUpperCase()}),el('div',{},el('h2',{textContent:names[o]+(o===me?' (you)':'')}),el('div',{className:'note',textContent:list.length+(list.length===1?' item':' items')}))));
+    items.filter(i=>i.owner===o).forEach(i=>{
+      const c=claims[i.id];let st;
+      if(o===me){st=el('button',{textContent:'Remove'});st.onclick=()=>db.doc('items/'+i.id).delete().catch(()=>{})}
+      else if(!c){st=el('button',{textContent:'I’ll get this'});st.onclick=()=>db.doc('claims/'+i.id).set({by:me}).catch(()=>{})}
+      else if(c===me){st=el('button',{textContent:'✓ You’re getting this · Undo'});st.onclick=()=>db.doc('claims/'+i.id).delete().catch(()=>{})}
+      else st=el('span',{className:'tag',textContent:'✓ Claimed'});
+      card.append(el('div',{className:'row'},el('div',{className:'txt'},i.text,linkEl(i.url)),st));
+    });
+    oth.append(card);
+  });
+  if(!oth.children.length)oth.append(el('p',{className:'empty',textContent:'No lists yet. Add the first item above.'}));
+}
+
+db.collection('items').onSnapshot(s=>{items=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.created||0)-(b.created||0));render()},()=>fail('Couldn’t load lists.'));
+db.collection('claims').onSnapshot(s=>{claims={};s.docs.forEach(d=>{claims[d.id]=(d.data()||{}).by});render()},()=>{});
+
+$('#addBtn').onclick=async()=>{
+  const text=$('#t').value.trim();let url=$('#u').value.trim();
+  if(!text)return;
+  if(url&&!/^https?:\/\//i.test(url))url='https://'+url;
+  if(url&&!safeUrl(url))url='';
+  try{await db.collection('items').add({owner:me,text,url,created:Date.now()});$('#t').value='';$('#u').value=''}
+  catch{fail('Couldn’t save. You may need edit access—ask the list organizer to invite you as a Contributor.');status.hidden=false}
+};
+})();
+</script>
+</body>
+</html>
