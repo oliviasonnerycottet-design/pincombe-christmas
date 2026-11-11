@@ -110,6 +110,40 @@ $('#addBtn').onclick=async()=>{
   catch{fail('Couldn’t save. You may need edit access—ask the list organizer to invite you as a Contributor.');status.hidden=false}
 };
 })();
+</script><script type="module">
+  import { initializeApp } from "https://gstatic.com";
+  import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc } from "https://gstatic.com";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCZKTS-e7PMiYgtMkNhsWa-FwSVUdJ-sMw",
+    authDomain: "://firebaseapp.com",
+    projectId: "pincombe-christmas",
+    storageBucket: "pincombe-christmas.firebasestorage.app",
+    messagingSenderId: "217095132539",
+    appId: "1:217095132539:web:837e2261d6f10d835119de"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const giftsRef = collection(db, "wishlist");
+
+  // Call this function when your form submits to save a new item
+  window.saveGiftToDatabase = async function(personName, giftIdea, link = "") {
+    await addDoc(giftsRef, {
+      person: personName,
+      gift: giftIdea,
+      link: link,
+      createdAt: Date.now()
+    });
+  };
+
+  // This automatically runs whenever anyone adds or removes an item
+  onSnapshot(giftsRef, (snapshot) => {
+    const allGifts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    console.log("Live family list updated:", allGifts);
+    // Connect 'allGifts' to whatever function renders your list on the page
+  });
 </script>
+
 </body>
 </html>
